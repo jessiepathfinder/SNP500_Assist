@@ -12,10 +12,9 @@ namespace SNP500_Assist
 	{
 		private const int kernelSize = 64;
 		private const double init = 1.0 / kernelSize;
-		private const double lr = 1.0 / 4096;
+		private const double lr = 1.0 / 2048;
 
 
-		private const double momentumDecayPositive = 0.9;
 		private const double momentumDecayNegative = 0.9999;
 		private const double damping = 0.2;
 
@@ -116,25 +115,28 @@ namespace SNP500_Assist
 					MakeNormalSecureRandomDoubles(delta, lr);
 					for (int i = 0; i < kernelSize; ++i)
 					{
-						testPolicy[i] = bestPolicy[i] + delta[i] + momentum[i];
+						double de = delta[i] + (momentum[i] * damping);
+						delta[i] = de;
+						testPolicy[i] = bestPolicy[i] + de;
 					}
 
 					Console.WriteLine("Testing random changes...");
 					double reward = ComputeReward(acs, act, av, av2, av3, span2, testPolicy);
 					Console.WriteLine("Reward: " + reward);
-					if(reward > bestReward){
+					if(reward < bestReward){
+						
+						for (int i = 0; i < kernelSize; ++i)
+						{
+							momentum[i] *= momentumDecayNegative;
+
+						}
+					} else{
 						Console.WriteLine("Committing positive change...");
 						bestReward = reward;
 						testPolicy.CopyTo(bestPolicy);
 						for (int i = 0; i < kernelSize; ++i)
 						{
-							momentum[i] = (momentum[i] + (delta[i] * damping)) * momentumDecayPositive;
-
-						}
-					} else{
-						for (int i = 0; i < kernelSize; ++i)
-						{
-							momentum[i] *= momentumDecayNegative;
+							momentum[i] = delta[i];
 
 						}
 					}
