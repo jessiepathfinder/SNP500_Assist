@@ -12,13 +12,12 @@ namespace SNP500_Assist
 	{
 		private const int kernelSize = 64;
 		private const double init = 1.0 / kernelSize;
-		private const double lr = 1.0 / 1024;
-		private const double lr_decay = 0.99999;
+		private const double lr = 1.0 / 4096;
 
 
 		private const double momentumDecayPositive = 0.9;
 		private const double momentumDecayNegative = 0.9999;
-		private const double damping = 0.1;
+		private const double damping = 0.2;
 
 		static void Main(string[] args)
 		{
@@ -111,12 +110,10 @@ namespace SNP500_Assist
 				Console.WriteLine("Reward: " + bestReward);
 
 				Console.WriteLine("Start training...");
-				double mlr = lr;
 				for(int p = 0; p < 100000; ++p){
 					Console.WriteLine("Training iteration #" + p);
 					Console.WriteLine("Making random changes...");
-					MakeNormalSecureRandomDoubles(delta, mlr);
-					mlr *= lr_decay;
+					MakeNormalSecureRandomDoubles(delta, lr);
 					for (int i = 0; i < kernelSize; ++i)
 					{
 						testPolicy[i] = bestPolicy[i] + delta[i] + momentum[i];
@@ -142,7 +139,7 @@ namespace SNP500_Assist
 						}
 					}
 				}
-
+				Console.WriteLine("Best reward: " + bestReward);
 				Console.WriteLine("Saving policy...");
 				using (FileStream fileStream = new FileStream(args[2], FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)){
 					fileStream.Write(MemoryMarshal.AsBytes(bestPolicy));
