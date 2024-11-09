@@ -177,12 +177,16 @@ namespace SNP500_Assist
 			Span<double> span = stackalloc double[len];
 			av2.CopyToCPU(span);
 			double reward = 0.0;
-			len -= 1;
+			len -= 2;
 			for(int i = 0; i < len; ){
-				double a = span[i];
-				double a_ = logeval[i];
-				double b = span[++i];
-				double b_ = logeval[i];
+				int t = i;
+
+				double a = span[t];
+				
+				i = ++t;
+				double a_ = logeval[t];
+				double b = span[t];
+				double b_ = logeval[t + 1];
 				reward += Math.Sign(b - a) * (b_ - a_);
 			}
 			return reward;
