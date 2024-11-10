@@ -9,12 +9,11 @@ namespace SNP500_Assist
 	internal static class Program
 	{
 		private const int kernelSize = 64;
-		private const double init = 1.0 / kernelSize;
-		private const double lr = 1.0 / 1024;
+		private const double lr = 1.0 / 16.0;
 
 
 		private const double momentumDecayNegative = 0.999;
-		private const double damping = 0.5;
+		private const double damping = 0.9;
 
 		static void Main(string[] args)
 		{
@@ -71,16 +70,18 @@ namespace SNP500_Assist
 			{
 				
 
-				Console.WriteLine("Initializing Momentum-Genetic Optimizer...");
+				Console.WriteLine("Initializing Momentum Stochastic Hill Climbing Optimizer...");
 
 				Span<double> bestPolicy = stackalloc double[kernelSize];
-				bestPolicy.Fill(init);
+				bestPolicy.Clear();
 
 				Span<double> momentum = stackalloc double[kernelSize];
-				momentum.Fill(0.0);
+				momentum.Clear();
 
 				Span<double> delta = stackalloc double[kernelSize];
 				Span<double> testPolicy = stackalloc double[kernelSize];
+				Span<double> expKernelPolicy = stackalloc double[kernelSize];
+				expKernelPolicy.Fill(1.0);
 
 				Console.WriteLine("Initializing ILGPU...");
 				Context context = Context.Create().AllAccelerators().ToContext();
@@ -103,7 +104,7 @@ namespace SNP500_Assist
 				Action<AcceleratorStream, Index1D, ArrayView<double>, ArrayView<double>, ArrayView<double>>  act = accelerator.LoadAutoGroupedKernel((Action<Index1D, ArrayView<double>, ArrayView<double>, ArrayView<double>>)DiscreteCausalConvKernel);
 
 				Console.WriteLine("Computing initial policy reward...");
-				double bestReward = ComputeReward(acs, act, av, av2, av3, span2, bestPolicy);
+				double bestReward = ComputeReward(acs, act, av, av2, av3, span2, expKernelPolicy);
 				Console.WriteLine("Reward: " + bestReward);
 
 				Console.WriteLine("Start training...");
@@ -113,20 +114,21 @@ namespace SNP500_Assist
 					MakeNormalSecureRandomDoubles(delta, lr);
 					for (int i = 0; i < kernelSize; ++i)
 					{
-						double de = delta[i] + (momentum[i] * damping);
+						double de = delta[i] + momentum[i];
 						delta[i] = de;
-						testPolicy[i] = bestPolicy[i] + de;
+						double np = bestPolicy[i] + de;
+						testPolicy[i] = np;
+						expKernelPolicy[i] = Math.Exp(np);
 					}
 
 					Console.WriteLine("Testing random changes...");
-					double reward = ComputeReward(acs, act, av, av2, av3, span2, testPolicy);
+					double reward = ComputeReward(acs, act, av, av2, av3, span2, expKernelPolicy);
 					Console.WriteLine("Reward: " + reward);
-					if(reward <= bestReward){
-						
+
+					if(reward < bestReward){
 						for (int i = 0; i < kernelSize; ++i)
 						{
 							momentum[i] *= momentumDecayNegative;
-
 						}
 					} else{
 						Console.WriteLine("Committing positive change...");
@@ -134,13 +136,17 @@ namespace SNP500_Assist
 						testPolicy.CopyTo(bestPolicy);
 						for (int i = 0; i < kernelSize; ++i)
 						{
-							momentum[i] = delta[i];
+							momentum[i] = delta[i] * damping;
 
 						}
 					}
 				}
 				Console.WriteLine("Best reward: " + bestReward);
 				Console.WriteLine("Saving policy...");
+				for(int i = 0; i < kernelSize; ++i){
+					ref double d2 = ref bestPolicy[i];
+					d2 = Math.Exp(d2);
+				}
 				using (FileStream fileStream = new FileStream(args[2], FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough)){
 					fileStream.Write(MemoryMarshal.AsBytes(bestPolicy));
 					fileStream.Flush();
@@ -214,7 +220,7 @@ namespace SNP500_Assist
 				ref double rd = ref span[i];
 				double u1 = rd;
 				double u2 = 1.0 - s1[i];
-				rd = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
+				rd = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2) * std;
 			}
 		}
 		private static double Dot(ReadOnlySpan<double> a, ReadOnlySpan<double> b){
