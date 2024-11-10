@@ -1,10 +1,7 @@
 ﻿using ILGPU;
-using ILGPU.IR.Analyses;
 using ILGPU.Runtime;
-using System;
-using System.Collections.Specialized;
+
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.Marshalling;
 using System.Security.Cryptography;
 
 namespace SNP500_Assist
