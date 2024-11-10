@@ -1,4 +1,5 @@
 ﻿using ILGPU;
+using ILGPU.IR.Analyses;
 using ILGPU.Runtime;
 using System;
 using System.Collections.Specialized;
@@ -12,11 +13,11 @@ namespace SNP500_Assist
 	{
 		private const int kernelSize = 64;
 		private const double init = 1.0 / kernelSize;
-		private const double lr = 1.0 / 2048;
+		private const double lr = 1.0 / 1024;
 
 
-		private const double momentumDecayNegative = 0.9999;
-		private const double damping = 0.2;
+		private const double momentumDecayNegative = 0.999;
+		private const double damping = 0.5;
 
 		static void Main(string[] args)
 		{
@@ -123,7 +124,7 @@ namespace SNP500_Assist
 					Console.WriteLine("Testing random changes...");
 					double reward = ComputeReward(acs, act, av, av2, av3, span2, testPolicy);
 					Console.WriteLine("Reward: " + reward);
-					if(reward < bestReward){
+					if(reward <= bestReward){
 						
 						for (int i = 0; i < kernelSize; ++i)
 						{
@@ -190,7 +191,7 @@ namespace SNP500_Assist
 			}
 			return reward;
 		}
-		public static void MakeNormalSecureRandomDoubles(Span<double> span, double std)
+		public static void MakeUniformSecureRandomDoubles(Span<double> span)
 		{
 			int len = span.Length;
 			if (len == 0)
@@ -202,9 +203,21 @@ namespace SNP500_Assist
 			for (int i = 0; i < len; ++i)
 			{
 				uints[i] = (uints[i] & 0x3FFFFFFFFFFFFFFF) | 0x3FF0000000000000;
-				double md = span[i];
 
-				span[i] = Math.Sign(md) * Math.Sqrt(-Math.Log(2.0 - Math.Abs(md))) * std;
+				span[i] -= 1.0;
+			}
+		}
+		public static void MakeNormalSecureRandomDoubles(Span<double> span, double std){
+			int len = span.Length;
+			if (len == 0) return;
+			Span<double> s1 = stackalloc double[len];
+			MakeUniformSecureRandomDoubles(span);
+			MakeUniformSecureRandomDoubles(s1);
+			for(int i = 0; i < len; ++i){
+				ref double rd = ref span[i];
+				double u1 = rd;
+				double u2 = 1.0 - s1[i];
+				rd = Math.Sqrt(-2.0 * Math.Log(u1)) * Math.Sin(2.0 * Math.PI * u2);
 			}
 		}
 		private static double Dot(ReadOnlySpan<double> a, ReadOnlySpan<double> b){
